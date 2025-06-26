@@ -27,7 +27,7 @@ from visualizers import generate_html_report
 # Constants
 REPO_URL = "https://github.com/geremyCohen/bench_guide"
 RESULTS_DIR = Path(__file__).parent / "results"
-LAZY_RELOAD = True  # Set to True to skip remote execution and reprocess last results
+LAZY_RELOAD = 1  # Set to True to skip remote execution and reprocess last results
 
 # Ensure results directory exists
 RESULTS_DIR.mkdir(exist_ok=True)
@@ -674,28 +674,75 @@ def lazy_reload_last_results():
                         "raw_data": {}
                     }
                     
+                    # Separate files by type like the original logic
+                    metadata_files = []
+                    mpstat_files = []
+                    result_files = []
+                    raw_output_file = None
+                    
                     for file_path in benchmark_dir.glob("*.txt"):
+                        filename = file_path.name
+                        if "metadata" in filename:
+                            metadata_files.append(file_path)
+                        elif "mpstat" in filename:
+                            mpstat_files.append(file_path)
+                        elif "result" in filename:
+                            result_files.append(file_path)
+                        elif "raw_output" in filename:
+                            raw_output_file = file_path
+                    
+                    # Parse metadata files first
+                    for file_path in metadata_files:
                         try:
-                            file_data = parse_benchmark_output.parse_file(
-                                str(file_path),
-                                benchmark_type
-                            )
-                            if file_data and "metrics" in file_data:
-                                # Merge metrics
-                                for key, value in file_data["metrics"].items():
+                            run_data = parse_benchmark_output.parse_file(str(file_path), benchmark_type)
+                            if run_data and "metrics" in run_data:
+                                for key, value in run_data["metrics"].items():
                                     if key not in parsed_data["metrics"]:
                                         parsed_data["metrics"][key] = value
                                     elif key == "runs" and isinstance(value, dict):
                                         if "runs" not in parsed_data["metrics"]:
                                             parsed_data["metrics"]["runs"] = {}
                                         parsed_data["metrics"]["runs"].update(value)
-                                
-                                # Merge system info
-                                if "system_info" in file_data:
-                                    parsed_data["system_info"].update(file_data["system_info"])
+                                if "system_info" in run_data:
+                                    parsed_data["system_info"].update(run_data["system_info"])
                         except Exception as e:
-                            timestamp = get_timestamp()
-                            print(f"[{timestamp}] Failed to parse {file_path}: {e}")
+                            pass
+                    
+                    # Parse mpstat files for time-series data
+                    for file_path in mpstat_files:
+                        try:
+                            run_data = parse_benchmark_output.parse_file(str(file_path), benchmark_type)
+                            if run_data and "metrics" in run_data and "time_series" in run_data["metrics"]:
+                                filename = file_path.name
+                                if "mpstat_" in filename:
+                                    run_name = filename.replace("mpstat_", "").replace(".txt", "").split("__")[-1]
+                                    parsed_data["metrics"][f"time_series_{run_name}"] = run_data["metrics"]["time_series"]
+                        except Exception as e:
+                            pass
+                    
+                    # Parse result files
+                    for file_path in result_files:
+                        try:
+                            run_data = parse_benchmark_output.parse_file(str(file_path), benchmark_type)
+                            if run_data and "metrics" in run_data:
+                                for key, value in run_data["metrics"].items():
+                                    if key not in parsed_data["metrics"]:
+                                        parsed_data["metrics"][key] = value
+                                    elif key == "runs" and isinstance(value, dict):
+                                        if "runs" not in parsed_data["metrics"]:
+                                            parsed_data["metrics"]["runs"] = {}
+                                        parsed_data["metrics"]["runs"].update(value)
+                                if "system_info" in run_data:
+                                    parsed_data["system_info"].update(run_data["system_info"])
+                        except Exception as e:
+                            pass
+                    
+                    # Fallback to raw output if no data
+                    if not parsed_data["metrics"] and raw_output_file:
+                        try:
+                            parsed_data = parse_benchmark_output.parse_file(str(raw_output_file), benchmark_type)
+                        except Exception as e:
+                            pass
                     
                     results[instance_name][benchmark_type] = parsed_data
     
