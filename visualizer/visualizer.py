@@ -27,6 +27,7 @@ from visualizers import generate_html_report
 # Constants
 REPO_URL = "https://github.com/geremyCohen/bench_guide"
 RESULTS_DIR = Path(__file__).parent / "results"
+LAZY_RELOAD = True  # Set to True to skip remote execution and reprocess last results
 
 # Ensure results directory exists
 RESULTS_DIR.mkdir(exist_ok=True)
@@ -375,8 +376,11 @@ def run_single_benchmark(instance, benchmark, benchmark_output_dir, temp_dir):
                     benchmark_dir
                 )
                 if run_data and "metrics" in run_data and "time_series" in run_data["metrics"]:
-                    parsed_data["metrics"]["time_series"] = run_data["metrics"]["time_series"]
-                    break  # Use the first mpstat file with time series data
+                    # Extract run name from filename
+                    filename = str(file_path).split('/')[-1]
+                    if "mpstat_" in filename:
+                        run_name = filename.replace("mpstat_", "").replace(".txt", "").split("__")[-1]
+                        parsed_data["metrics"][f"time_series_{run_name}"] = run_data["metrics"]["time_series"]
             except Exception as e:
                 timestamp = get_timestamp()
                 print(f"[{timestamp}] " + colored(f"[{instance['name']}-ERR]", color) + f" Failed to parse mpstat file {file_path}: {e}")
@@ -630,11 +634,108 @@ def run_benchmarks_on_instances(provider, instances, selected_benchmarks):
     return results, run_dir
 
 
+def lazy_reload_last_results():
+    """Reload and reprocess the last benchmark results."""
+    timestamp = get_timestamp()
+    print(f"[{timestamp}] LAZY_RELOAD mode: Reprocessing last results...")
+    
+    # Find the most recent results directory
+    if not RESULTS_DIR.exists():
+        print(f"[{timestamp}] No results directory found")
+        return None
+    
+    result_dirs = [d for d in RESULTS_DIR.iterdir() if d.is_dir()]
+    if not result_dirs:
+        print(f"[{timestamp}] No result directories found")
+        return None
+    
+    # Sort by directory name (timestamp) and get the latest
+    latest_dir = sorted(result_dirs, key=lambda x: x.name)[-1]
+    timestamp = get_timestamp()
+    print(f"[{timestamp}] Using results from: {latest_dir}")
+    
+    # Parse existing files and regenerate report
+    results = {}
+    
+    for instance_dir in latest_dir.iterdir():
+        if instance_dir.is_dir():
+            instance_name = instance_dir.name
+            results[instance_name] = {}
+            
+            for benchmark_dir in instance_dir.iterdir():
+                if benchmark_dir.is_dir():
+                    benchmark_type = benchmark_dir.name
+                    
+                    # Parse all files in the benchmark directory
+                    parsed_data = {
+                        "benchmark_type": benchmark_type,
+                        "system_info": {},
+                        "metrics": {},
+                        "raw_data": {}
+                    }
+                    
+                    for file_path in benchmark_dir.glob("*.txt"):
+                        try:
+                            file_data = parse_benchmark_output.parse_file(
+                                str(file_path),
+                                benchmark_type
+                            )
+                            if file_data and "metrics" in file_data:
+                                # Merge metrics
+                                for key, value in file_data["metrics"].items():
+                                    if key not in parsed_data["metrics"]:
+                                        parsed_data["metrics"][key] = value
+                                    elif key == "runs" and isinstance(value, dict):
+                                        if "runs" not in parsed_data["metrics"]:
+                                            parsed_data["metrics"]["runs"] = {}
+                                        parsed_data["metrics"]["runs"].update(value)
+                                
+                                # Merge system info
+                                if "system_info" in file_data:
+                                    parsed_data["system_info"].update(file_data["system_info"])
+                        except Exception as e:
+                            timestamp = get_timestamp()
+                            print(f"[{timestamp}] Failed to parse {file_path}: {e}")
+                    
+                    results[instance_name][benchmark_type] = parsed_data
+    
+    return results, latest_dir
+
+
 def main():
     """Main function."""
     timestamp = get_timestamp()
     print(f"[{timestamp}] Benchmark Visualization Tool")
     print(f"[{timestamp}] ===========================\n")
+    
+    # Check for lazy reload mode
+    if LAZY_RELOAD:
+        lazy_results = lazy_reload_last_results()
+        if lazy_results:
+            results, run_dir = lazy_results
+            
+            # Generate report
+            timestamp = get_timestamp()
+            print(f"[{timestamp}] Generating report...")
+            report_path = generate_html_report.create_report(results, run_dir)
+            
+            timestamp = get_timestamp()
+            print(f"\n[{timestamp}] Report regenerated! Available at: {report_path}")
+            
+            # Auto-open the report in the default browser
+            try:
+                webbrowser.open(f"file://{os.path.abspath(report_path)}")
+                timestamp = get_timestamp()
+                print(f"[{timestamp}] Opening report in default browser...")
+            except Exception as e:
+                timestamp = get_timestamp()
+                print(f"[{timestamp}] Could not auto-open report: {e}")
+            
+            return
+        else:
+            timestamp = get_timestamp()
+            print(f"[{timestamp}] No previous results found, continuing with normal execution...")
+            print()
     
     # Select cloud provider
     provider_name = select_cloud_provider()

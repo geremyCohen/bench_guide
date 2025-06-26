@@ -184,6 +184,9 @@ def generate_cpu_utilization_charts(results):
                 avg_util = run_data.get("avg_utilization", 0)
                 datasets.append(avg_util)
             
+            # Add mpstat time-series chart for this specific run
+            html += generate_run_specific_mpstat_chart(results, run_name, i)
+            
             # Add chart initialization script
             html += f"""
             <script>
@@ -339,6 +342,89 @@ def generate_cpu_utilization_charts(results):
             }});
         </script>
         """
+    
+    return html
+
+
+def generate_run_specific_mpstat_chart(results, run_name, chart_index):
+    """Generate mpstat time-series chart for a specific run."""
+    html = ""
+    
+    # Check if we have time-series data for this run
+    mpstat_data = {}
+    for instance_name, data in results.items():
+        run_time_series = data.get("metrics", {}).get(f"time_series_{run_name}", [])
+        if run_time_series:
+            mpstat_data[instance_name] = run_time_series
+    
+    if not mpstat_data:
+        return html
+    
+    html += f'<h4>Detailed Timeline - {run_name.replace("_", " ").title()}</h4>\n'
+    html += f'<div class="chart-container"><canvas id="mpstatChart_{run_name}_{chart_index}"></canvas></div>\n'
+    
+    # Prepare datasets for each instance
+    datasets = []
+    colors = ['rgba(255, 99, 132, 1)', 'rgba(54, 162, 235, 1)', 'rgba(255, 205, 86, 1)', 'rgba(75, 192, 192, 1)']
+    
+    for i, (instance_name, time_series) in enumerate(mpstat_data.items()):
+        chart_data = []
+        for point in time_series:
+            chart_data.append({
+                'x': point['time'],
+                'y': point['utilization']
+            })
+        
+        color = colors[i % len(colors)]
+        datasets.append({
+            'label': instance_name,
+            'data': chart_data,
+            'borderColor': color,
+            'backgroundColor': color.replace('1)', '0.1)'),
+            'fill': False,
+            'tension': 0.1
+        })
+    
+    # Add chart initialization script
+    html += f"""
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {{
+            const mpstatCtx = document.getElementById('mpstatChart_{run_name}_{chart_index}').getContext('2d');
+            new Chart(mpstatCtx, {{
+                type: 'line',
+                data: {{
+                    datasets: {json.dumps(datasets)}
+                }},
+                options: {{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {{
+                        x: {{
+                            type: 'category',
+                            title: {{
+                                display: true,
+                                text: 'Time'
+                            }}
+                        }},
+                        y: {{
+                            beginAtZero: true,
+                            max: 100,
+                            title: {{
+                                display: true,
+                                text: 'CPU Utilization (%)'
+                            }}
+                        }}
+                    }},
+                    plugins: {{
+                        legend: {{
+                            display: true
+                        }}
+                    }}
+                }}
+            }});
+        }});
+    </script>
+    """
     
     return html
 
