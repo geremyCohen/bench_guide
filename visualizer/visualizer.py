@@ -399,8 +399,13 @@ def run_single_benchmark(instance, benchmark, benchmark_output_dir, temp_dir):
             print(f"[{timestamp}] " + colored(f"[{instance['name']}-ERR]", color) + f" Failed to parse raw output: {e}")
     
     # Add system information to the parsed data
-    if parsed_data and 'system_info' in instance and instance['system_info']:
-        parsed_data["system_info"].update(instance['system_info'])
+    if parsed_data:
+        if 'system_info' in instance and instance['system_info']:
+            parsed_data["system_info"].update(instance['system_info'])
+        
+        # Add instance type to system info
+        if 'instance_type' in instance:
+            parsed_data["system_info"]["instance_type"] = instance['instance_type']
     
     return parsed_data
 

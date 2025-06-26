@@ -116,14 +116,15 @@ def generate_html(results):
         html += '<div class="system-info">\n'
         html += '<h3>System Information</h3>\n'
         html += '<table>\n'
-        html += '<tr><th>Instance</th><th>Architecture</th><th>CPU Model</th><th>CPU Cores</th></tr>\n'
+        html += '<tr><th>Name</th><th>Type</th><th>Architecture</th><th>CPU Model</th><th>CPU Cores</th></tr>\n'
         
         for instance_name, data in benchmark_results.items():
             arch = data.get("system_info", {}).get("architecture", "N/A")
             cpu_model = data.get("system_info", {}).get("cpu_model", "N/A")
             cpu_cores = data.get("system_info", {}).get("cpu_cores", "N/A")
+            instance_type = data.get("system_info", {}).get("instance_type", "N/A")
             
-            html += f'<tr><td>{instance_name}</td><td>{arch}</td><td>{cpu_model}</td><td>{cpu_cores}</td></tr>\n'
+            html += f'<tr><td>{instance_name}</td><td>{instance_type}</td><td>{arch}</td><td>{cpu_model}</td><td>{cpu_cores}</td></tr>\n'
         
         html += '</table>\n'
         html += '</div>\n'
