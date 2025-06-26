@@ -356,75 +356,179 @@ def generate_run_specific_mpstat_chart(results, run_name, chart_index):
         run_time_series = data.get("metrics", {}).get(f"time_series_{run_name}", [])
         if run_time_series:
             mpstat_data[instance_name] = run_time_series
+        # Try generic time_series if run-specific not found
+        elif not run_time_series:
+            generic_time_series = data.get("metrics", {}).get("time_series", [])
+            if generic_time_series:
+                mpstat_data[instance_name] = generic_time_series
     
     if not mpstat_data:
         return html
     
-    html += f'<h4>Detailed Timeline - {run_name.replace("_", " ").title()}</h4>\n'
-    html += f'<div class="chart-container"><canvas id="mpstatChart_{run_name}_{chart_index}"></canvas></div>\n'
-    
-    # Prepare datasets for each instance
-    datasets = []
-    colors = ['rgba(255, 99, 132, 1)', 'rgba(54, 162, 235, 1)', 'rgba(255, 205, 86, 1)', 'rgba(75, 192, 192, 1)']
-    
+    # Create a separate chart for each instance
     for i, (instance_name, time_series) in enumerate(mpstat_data.items()):
-        chart_data = []
-        for point in time_series:
-            chart_data.append({
-                'x': point['time'],
-                'y': point['utilization']
-            })
+        # Check if detailed metrics are available
+        has_detailed = len(time_series) > 0 and 'usr' in time_series[0]
         
-        color = colors[i % len(colors)]
-        datasets.append({
-            'label': instance_name,
-            'data': chart_data,
-            'borderColor': color,
-            'backgroundColor': color.replace('1)', '0.1)'),
-            'fill': False,
-            'tension': 0.1
-        })
-    
-    # Add chart initialization script
-    html += f"""
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {{
-            const mpstatCtx = document.getElementById('mpstatChart_{run_name}_{chart_index}').getContext('2d');
-            new Chart(mpstatCtx, {{
-                type: 'line',
-                data: {{
-                    datasets: {json.dumps(datasets)}
-                }},
-                options: {{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {{
-                        x: {{
-                            type: 'category',
-                            title: {{
-                                display: true,
-                                text: 'Time'
-                            }}
+        if has_detailed:
+            html += f'<h4>{instance_name} - CPU Breakdown - {run_name.replace("_", " ").title()}</h4>\n'
+            html += f'<div class="chart-container"><canvas id="mpstatChart_{instance_name}_{run_name}_{chart_index}"></canvas></div>\n'
+            
+            # Create stacked datasets for usr, sys, iowait
+            stacked_metrics = ['usr', 'sys', 'iowait']
+            stacked_labels = {'usr': 'User', 'sys': 'System', 'iowait': 'I/O Wait'}
+            stacked_colors = {
+                'usr': 'rgba(255, 99, 132, 0.7)',   # Red
+                'sys': 'rgba(54, 162, 235, 0.7)',   # Blue
+                'iowait': 'rgba(255, 206, 86, 0.7)' # Yellow
+            }
+            
+            stacked_datasets = []
+            for metric in stacked_metrics:
+                chart_data = []
+                for point in time_series:
+                    if metric in point:
+                        chart_data.append({'x': point['time'], 'y': point[metric]})
+                
+                if chart_data:
+                    stacked_datasets.append({
+                        'label': stacked_labels[metric],
+                        'data': chart_data,
+                        'backgroundColor': stacked_colors[metric],
+                        'borderColor': stacked_colors[metric].replace('0.7', '1.0'),
+                        'borderWidth': 1
+                    })
+            
+            # Add total utilization as a line on top
+            total_data = []
+            for point in time_series:
+                if 'utilization' in point:
+                    total_data.append({'x': point['time'], 'y': point['utilization']})
+            
+            if total_data:
+                stacked_datasets.append({
+                    'label': 'Total CPU',
+                    'data': total_data,
+                    'type': 'line',
+                    'borderColor': 'rgba(75, 192, 192, 1)',  # Teal
+                    'backgroundColor': 'transparent',
+                    'borderWidth': 2,
+                    'fill': False,
+                    'order': 0  # Draw on top
+                })
+            
+            # Add chart initialization script
+            html += f"""
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {{
+                    const mpstatCtx = document.getElementById('mpstatChart_{instance_name}_{run_name}_{chart_index}').getContext('2d');
+                    new Chart(mpstatCtx, {{
+                        type: 'bar',  // Default type for stacked bars
+                        data: {{
+                            datasets: {json.dumps(stacked_datasets)}
                         }},
-                        y: {{
-                            beginAtZero: true,
-                            max: 100,
-                            title: {{
-                                display: true,
-                                text: 'CPU Utilization (%)'
+                        options: {{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {{
+                                x: {{
+                                    type: 'category',
+                                    stacked: true,
+                                    title: {{
+                                        display: true,
+                                        text: 'Time'
+                                    }}
+                                }},
+                                y: {{
+                                    stacked: true,
+                                    beginAtZero: true,
+                                    max: 100,
+                                    title: {{
+                                        display: true,
+                                        text: 'CPU Utilization (%)'
+                                    }}
+                                }}
+                            }},
+                            plugins: {{
+                                legend: {{
+                                    display: true,
+                                    position: 'top'
+                                }},
+                                tooltip: {{
+                                    mode: 'index',
+                                    intersect: false
+                                }}
                             }}
                         }}
-                    }},
-                    plugins: {{
-                        legend: {{
-                            display: true
+                    }});
+                }});
+            </script>
+            """
+        else:
+            # Simple chart for total utilization only
+            html += f'<h4>{instance_name} - CPU Utilization - {run_name.replace("_", " ").title()}</h4>\n'
+            html += f'<div class="chart-container"><canvas id="mpstatChart_{instance_name}_{run_name}_{chart_index}"></canvas></div>\n'
+            
+            chart_data = []
+            for point in time_series:
+                chart_data.append({'x': point['time'], 'y': point.get('utilization', point.get('y', 0))})
+            
+            datasets = [{
+                'label': 'Total CPU',
+                'data': chart_data,
+                'borderColor': 'rgba(75, 192, 192, 1)',
+                'backgroundColor': 'rgba(75, 192, 192, 0.2)',
+                'fill': True,
+                'tension': 0.1,
+                'borderWidth': 2
+            }]
+            
+            html += f"""
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {{
+                    const mpstatCtx = document.getElementById('mpstatChart_{instance_name}_{run_name}_{chart_index}').getContext('2d');
+                    new Chart(mpstatCtx, {{
+                        type: 'line',
+                        data: {{
+                            datasets: {json.dumps(datasets)}
+                        }},
+                        options: {{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {{
+                                x: {{
+                                    type: 'category',
+                                    title: {{
+                                        display: true,
+                                        text: 'Time'
+                                    }}
+                                }},
+                                y: {{
+                                    beginAtZero: true,
+                                    max: 100,
+                                    title: {{
+                                        display: true,
+                                        text: 'CPU Utilization (%)'
+                                    }}
+                                }}
+                            }},
+                            plugins: {{
+                                legend: {{
+                                    display: true,
+                                    position: 'top'
+                                }},
+                                tooltip: {{
+                                    mode: 'index',
+                                    intersect: false
+                                }}
+                            }}
                         }}
-                    }}
-                }}
-            }});
-        }});
-    </script>
-    """
+                    }});
+                }});
+            </script>
+            """
+    
+    return html
     
     return html
 

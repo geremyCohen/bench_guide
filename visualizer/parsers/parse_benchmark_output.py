@@ -59,11 +59,18 @@ def parse_mpstat_file(content, result):
             parts = line.split()
             if len(parts) >= 11:
                 time_str = parts[0]
-                cpu_idle = float(parts[-1])  # Last column is %idle
+                usr = float(parts[2])     # %usr
+                sys = float(parts[4])     # %sys  
+                iowait = float(parts[5])  # %iowait
+                cpu_idle = float(parts[-1])  # %idle
                 cpu_util = 100 - cpu_idle
+                
                 time_series.append({
                     'time': time_str,
-                    'utilization': round(cpu_util, 2)
+                    'utilization': round(cpu_util, 2),
+                    'usr': round(usr, 2),
+                    'sys': round(sys, 2),
+                    'iowait': round(iowait, 2)
                 })
     
     if time_series:
