@@ -68,9 +68,9 @@ run_test() {
 }
 
 # Run tests with different loads
-run_test $(nproc) 30 "full_load"  # Full load (all cores)
-run_test $(($(nproc) / 2)) 30 "half_load"  # Half load
-run_test 1 30 "single_core"  # Single core load
+run_test $(nproc) 10 "full_load"  # Full load (all cores)
+run_test $(($(nproc) / 2)) 10 "half_load"  # Half load
+run_test 1 10 "single_core"  # Single core load
 
 # Create a manifest file listing all runs
 echo "Creating runs manifest file"
@@ -108,7 +108,7 @@ metadata_half_load.txt
 metadata_single_core.txt
 mpstat_full_load.txt
 mpstat_half_load.txt
-
+mpstat_single_core.txt
 results_full_load.txt
 results_half_load.txt
 results_single_core.txt

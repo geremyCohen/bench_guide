@@ -54,16 +54,16 @@ def parse_mpstat_file(content, result):
     time_series = []
     
     for line in lines:
-        # Look for CPU data lines (skip headers and averages)
-        if re.match(r'^\d{2}:\d{2}:\d{2}\s+\d+\s+all', line):
+        # Look for CPU data lines with 'all' (skip headers, averages, and individual cores)
+        if re.match(r'^\d{2}:\d{2}:\d{2}\s+all\s+', line):
             parts = line.split()
-            if len(parts) >= 12:
+            if len(parts) >= 11:
                 time_str = parts[0]
                 cpu_idle = float(parts[-1])  # Last column is %idle
                 cpu_util = 100 - cpu_idle
                 time_series.append({
                     'time': time_str,
-                    'utilization': cpu_util
+                    'utilization': round(cpu_util, 2)
                 })
     
     if time_series:
