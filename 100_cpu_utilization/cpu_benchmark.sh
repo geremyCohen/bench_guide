@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configuration parameters
-TEST_DURATION=10  # Duration in seconds for each test run
+TEST_DURATION=180  # Duration in seconds for each test run
 
 echo "CPU Benchmark Script v2.0 - $(date)"
 
