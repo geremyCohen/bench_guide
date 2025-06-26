@@ -355,6 +355,7 @@ def generate_run_specific_mpstat_chart(results, run_name, chart_index):
     """Generate mpstat time-series chart for a specific run."""
     html = ""
     
+    
     # Check if we have time-series data for this run
     mpstat_data = {}
     for instance_name, data in results.items():
@@ -377,7 +378,8 @@ def generate_run_specific_mpstat_chart(results, run_name, chart_index):
         
         if has_detailed:
             # Get stress-ng metrics if available
-            stress_metrics = data.get("metrics", {}).get("runs", {}).get(run_name, {}).get("stress_metrics", {})
+            run_data = data.get("metrics", {}).get("runs", {}).get(run_name, {})
+            stress_metrics = run_data.get("stress_metrics", {})
             
             # Create header with metrics
             html += f'<h4>{instance_name} - CPU Breakdown - {run_name.replace("_", " ").title()}</h4>\n'
@@ -390,6 +392,11 @@ def generate_run_specific_mpstat_chart(results, run_name, chart_index):
                 html += f'<strong>Ops/s (CPU):</strong> {stress_metrics.get("bogo_ops_time", "N/A"):.2f} | '
                 html += f'<strong>User:</strong> {stress_metrics.get("usr_time", "N/A"):.2f}s | '
                 html += f'<strong>System:</strong> {stress_metrics.get("sys_time", "N/A"):.2f}s</p>\n'
+                html += '</div>\n'
+            else:
+                # Debug: Check what's in run_data
+                html += '<div class="stress-metrics">\n'
+                html += f'<p><strong>Stress-ng metrics:</strong> Not available</p>\n'
                 html += '</div>\n'
             
             html += f'<div class="chart-container"><canvas id="mpstatChart_{instance_name}_{run_name}_{chart_index}"></canvas></div>\n'

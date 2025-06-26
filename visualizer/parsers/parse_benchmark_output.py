@@ -7,7 +7,35 @@ Parses benchmark output files into a common format for visualization.
 
 import re
 import json
+import os
 from pathlib import Path
+
+
+def extract_stress_metrics(content):
+    """Extract stress-ng metrics from content."""
+    stress_metrics_by_run = {}
+    
+    # Extract run names and their corresponding metrics
+    run_names = re.findall(r'=== Running CPU test with \d+ load for \d+ seconds \(Run: (\w+)\) ===', content)
+    
+    # Extract all stress-ng metrics lines
+    metrics_pattern = r"stress-ng: metrc:.*?cpu\s+(\d+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"
+    metrics_matches = re.findall(metrics_pattern, content, re.DOTALL)
+    
+    # Match metrics with run names
+    if len(metrics_matches) == len(run_names):
+        for run_name, metrics in zip(run_names, metrics_matches):
+            bogo_ops, real_time, usr_time, sys_time, bogo_ops_real, bogo_ops_time = metrics
+            stress_metrics_by_run[run_name] = {
+                "bogo_ops": int(bogo_ops),
+                "real_time": float(real_time),
+                "usr_time": float(usr_time),
+                "sys_time": float(sys_time),
+                "bogo_ops_real": float(bogo_ops_real),
+                "bogo_ops_time": float(bogo_ops_time)
+            }
+    
+    return stress_metrics_by_run
 
 
 def parse_file(file_path, benchmark_type):
@@ -29,12 +57,49 @@ def parse_file(file_path, benchmark_type):
         "raw_data": {}
     }
     
+    # Debug output
+    print(f"DEBUG: Parsing file: {file_path}")
+    
+    # Check if this is a metadata file
+    if "__metadata_" in file_path:
+        print(f"DEBUG: This is a metadata file")
+        # Extract run name from file path
+        run_name = None
+        if "__metadata_" in file_path:
+            run_name = file_path.split("__metadata_")[1].split(".")[0]
+            print(f"DEBUG: Run name from metadata file: {run_name}")
+    
+    
     # Read file content
     with open(file_path, 'r') as f:
         content = f.read()
     
+    # Debug output
+    print(f"DEBUG: Parsing file: {file_path}")
+    print(f"DEBUG: File size: {len(content)} bytes")
+    print(f"DEBUG: File contains 'stress-ng: metrc': {'stress-ng: metrc' in content}")
+    if 'stress-ng: metrc' in content:
+        print(f"DEBUG: First occurrence at position: {content.find('stress-ng: metrc')}")
+        print(f"DEBUG: Content around first occurrence: {content[content.find('stress-ng: metrc'):content.find('stress-ng: metrc')+100]}")
+    
+    
     # Store raw data
     result["raw_data"]["content"] = content
+    
+    # Check if this is a raw output file
+    if "STDOUT:" in content and "stress-ng: metrc" in content:
+        print(f"DEBUG: This is a raw output file with stress-ng metrics")
+        # Extract just the STDOUT part
+        stdout_match = re.search(r"STDOUT:\n(.+?)(?:\n\n\nSTDERR:|$)", content, re.DOTALL)
+        if stdout_match:
+            stdout_content = stdout_match.group(1)
+            print(f"DEBUG: Extracted STDOUT content, size: {len(stdout_content)} bytes")
+            print(f"DEBUG: STDOUT contains 'stress-ng: metrc': {'stress-ng: metrc' in stdout_content}")
+            if 'stress-ng: metrc' in stdout_content:
+                print(f"DEBUG: First occurrence in STDOUT at position: {stdout_content.find('stress-ng: metrc')}")
+                print(f"DEBUG: Content around first occurrence in STDOUT: {stdout_content[stdout_content.find('stress-ng: metrc'):stdout_content.find('stress-ng: metrc')+100]}")
+            # Use the STDOUT content for parsing
+            content = stdout_content
     
     # Check if this is an mpstat file
     if "mpstat" in str(file_path).lower() or "Average:" in content:
@@ -42,7 +107,7 @@ def parse_file(file_path, benchmark_type):
     
     # Parse based on benchmark type
     if benchmark_type == "100_cpu_utilization":
-        return parse_cpu_utilization(content, result)
+        return parse_cpu_utilization(content, result, file_path)
     else:
         # Generic parser for other benchmark types
         return parse_generic(content, result, benchmark_type)
@@ -79,8 +144,26 @@ def parse_mpstat_file(content, result):
     return result
 
 
-def parse_cpu_utilization(content, result):
+def parse_cpu_utilization(content, result, file_path):
     """Parse CPU utilization benchmark output."""
+    
+    # Initialize stress metrics dictionary
+    stress_metrics_by_run = {}
+    
+    # Check if there's a raw output file in the same directory
+    file_path_obj = Path(file_path)
+    instance_name = file_path_obj.name.split('__')[0]
+    raw_output_path = str(file_path_obj.parent / f"{instance_name}__raw_output.txt")
+    
+    # Try to extract from raw output file first
+    if os.path.exists(raw_output_path):
+        with open(raw_output_path, 'r') as f:
+            raw_content = f.read()
+        stress_metrics_by_run = extract_stress_metrics(raw_content)
+    
+    # Also try to extract from current content if it contains stress-ng data
+    if not stress_metrics_by_run and 'stress-ng: metrc' in content:
+        stress_metrics_by_run = extract_stress_metrics(content)
     # Extract system information
     arch_match = re.search(r"Architecture:\s*(.*)", content)
     if arch_match:
@@ -129,18 +212,12 @@ def parse_cpu_utilization(content, result):
             
         return result
     
-    # Extract stress-ng metrics
-    stress_metrics = {}
-    for match in re.finditer(r"stress-ng: metrc: \[\d+\] cpu\s+(\d+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)", content):
-        bogo_ops, real_time, usr_time, sys_time, bogo_ops_real, bogo_ops_time = match.groups()
-        stress_metrics = {
-            "bogo_ops": int(bogo_ops),
-            "real_time": float(real_time),
-            "usr_time": float(usr_time),
-            "sys_time": float(sys_time),
-            "bogo_ops_real": float(bogo_ops_real),
-            "bogo_ops_time": float(bogo_ops_time)
-        }
+    # Extract stress-ng metrics using the helper function
+    if not stress_metrics_by_run:
+        stress_metrics_by_run = extract_stress_metrics(content)
+    
+    
+    # Metrics are now extracted directly in the regex pattern above
     
     # Extract runs data from the new format
     result["metrics"]["runs"] = {}
@@ -173,9 +250,9 @@ def parse_cpu_utilization(content, result):
                     "duration": duration_match.group(1) if duration_match else "unknown"
                 }
                 
-                # Add stress-ng metrics if available
-                if stress_metrics:
-                    result["metrics"]["runs"][run_name]["stress_metrics"] = stress_metrics
+                # Add stress-ng metrics if available for this run
+                if run_name in stress_metrics_by_run:
+                    result["metrics"]["runs"][run_name]["stress_metrics"] = stress_metrics_by_run[run_name]
                 
                 # Also add to the main average_utilization list for backward compatibility
                 result["metrics"]["average_utilization"].append(avg_util)
