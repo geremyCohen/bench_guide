@@ -36,12 +36,40 @@ def parse_file(file_path, benchmark_type):
     # Store raw data
     result["raw_data"]["content"] = content
     
+    # Check if this is an mpstat file
+    if "mpstat" in str(file_path).lower() or "Average:" in content:
+        return parse_mpstat_file(content, result)
+    
     # Parse based on benchmark type
     if benchmark_type == "100_cpu_utilization":
         return parse_cpu_utilization(content, result)
     else:
         # Generic parser for other benchmark types
         return parse_generic(content, result, benchmark_type)
+
+
+def parse_mpstat_file(content, result):
+    """Parse mpstat output file for time-series CPU data."""
+    lines = content.strip().split('\n')
+    time_series = []
+    
+    for line in lines:
+        # Look for CPU data lines (skip headers and averages)
+        if re.match(r'^\d{2}:\d{2}:\d{2}\s+\d+\s+all', line):
+            parts = line.split()
+            if len(parts) >= 12:
+                time_str = parts[0]
+                cpu_idle = float(parts[-1])  # Last column is %idle
+                cpu_util = 100 - cpu_idle
+                time_series.append({
+                    'time': time_str,
+                    'utilization': cpu_util
+                })
+    
+    if time_series:
+        result["metrics"]["time_series"] = time_series
+    
+    return result
 
 
 def parse_cpu_utilization(content, result):

@@ -300,11 +300,14 @@ def run_single_benchmark(instance, benchmark, benchmark_output_dir, temp_dir):
         metadata_files = []
         result_files = []
         
+        mpstat_files = []
         for file_path in downloaded_files:
             if "manifest" in str(file_path).lower():
                 manifest_file = file_path
             elif "metadata" in str(file_path).lower():
                 metadata_files.append(file_path)
+            elif "mpstat" in str(file_path).lower():
+                mpstat_files.append(file_path)
             elif "result" in str(file_path).lower() or "output" in str(file_path).lower():
                 result_files.append(file_path)
         
@@ -363,6 +366,20 @@ def run_single_benchmark(instance, benchmark, benchmark_output_dir, temp_dir):
             except Exception as e:
                 timestamp = get_timestamp()
                 print(f"[{timestamp}] " + colored(f"[{instance['name']}-ERR]", color) + f" Failed to parse {file_path}: {e}")
+        
+        # Parse mpstat files for time-series data
+        for file_path in mpstat_files:
+            try:
+                run_data = parse_benchmark_output.parse_file(
+                    str(file_path), 
+                    benchmark_dir
+                )
+                if run_data and "metrics" in run_data and "time_series" in run_data["metrics"]:
+                    parsed_data["metrics"]["time_series"] = run_data["metrics"]["time_series"]
+                    break  # Use the first mpstat file with time series data
+            except Exception as e:
+                timestamp = get_timestamp()
+                print(f"[{timestamp}] " + colored(f"[{instance['name']}-ERR]", color) + f" Failed to parse mpstat file {file_path}: {e}")
     
     # If no files were downloaded or parsing failed, use the raw output
     if not parsed_data:

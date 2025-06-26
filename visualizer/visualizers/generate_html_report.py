@@ -131,6 +131,7 @@ def generate_html(results):
         # Generate charts based on benchmark type
         if benchmark_type == "100_cpu_utilization":
             html += generate_cpu_utilization_charts(benchmark_results)
+            html += generate_mpstat_time_series_charts(benchmark_results)
         else:
             html += generate_generic_charts(benchmark_results, benchmark_type)
         
@@ -338,6 +339,91 @@ def generate_cpu_utilization_charts(results):
             }});
         </script>
         """
+    
+    return html
+
+
+def generate_mpstat_time_series_charts(results):
+    """Generate time-series charts from mpstat data."""
+    html = ""
+    
+    # Check if we have time-series data
+    has_time_series = False
+    for instance_name, data in results.items():
+        if "time_series" in data.get("metrics", {}):
+            has_time_series = True
+            break
+    
+    if not has_time_series:
+        return html
+    
+    html += '<h3>CPU Utilization Over Time</h3>\n'
+    html += '<div class="chart-container"><canvas id="timeSeriesChart"></canvas></div>\n'
+    
+    # Prepare datasets for each instance
+    datasets = []
+    colors = ['rgba(255, 99, 132, 1)', 'rgba(54, 162, 235, 1)', 'rgba(255, 205, 86, 1)', 'rgba(75, 192, 192, 1)']
+    
+    for i, (instance_name, data) in enumerate(results.items()):
+        time_series = data.get("metrics", {}).get("time_series", [])
+        if time_series:
+            chart_data = []
+            for point in time_series:
+                chart_data.append({
+                    'x': point['time'],
+                    'y': point['utilization']
+                })
+            
+            color = colors[i % len(colors)]
+            datasets.append({
+                'label': instance_name,
+                'data': chart_data,
+                'borderColor': color,
+                'backgroundColor': color.replace('1)', '0.1)'),
+                'fill': False,
+                'tension': 0.1
+            })
+    
+    # Add chart initialization script
+    html += f"""
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {{
+            const timeSeriesCtx = document.getElementById('timeSeriesChart').getContext('2d');
+            new Chart(timeSeriesCtx, {{
+                type: 'line',
+                data: {{
+                    datasets: {json.dumps(datasets)}
+                }},
+                options: {{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {{
+                        x: {{
+                            type: 'category',
+                            title: {{
+                                display: true,
+                                text: 'Time'
+                            }}
+                        }},
+                        y: {{
+                            beginAtZero: true,
+                            max: 100,
+                            title: {{
+                                display: true,
+                                text: 'CPU Utilization (%)'
+                            }}
+                        }}
+                    }},
+                    plugins: {{
+                        legend: {{
+                            display: true
+                        }}
+                    }}
+                }}
+            }});
+        }});
+    </script>
+    """
     
     return html
 
