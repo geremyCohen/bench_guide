@@ -53,7 +53,7 @@ def parse_cpu_utilization(content, result):
     
     cpu_model_match = re.search(r"Model name:\s*(.*)", content)
     if cpu_model_match:
-        result["system_info"]["cpu_model"] = cpu_model_match.group(1)
+        result["system_info"]["cpu_model"] = cpu_model_match.group(1).strip()
     
     cpu_cores_match = re.search(r"CPU Cores:\s*(\d+)", content)
     if cpu_cores_match:
@@ -94,62 +94,54 @@ def parse_cpu_utilization(content, result):
             
         return result
     
-    # Extract CPU utilization metrics
-    avg_util_matches = re.findall(r"Average CPU utilization \(all cores\):\s*([\d.]+)%", content)
-    if avg_util_matches:
-        result["metrics"]["average_utilization"] = [float(util) for util in avg_util_matches]
-    else:
-        # Try alternative format
-        avg_util_matches = re.findall(r"all\s+([\d.]+)", content)
-        if avg_util_matches:
-            result["metrics"]["average_utilization"] = [100 - float(util) for util in avg_util_matches]
+    # Extract runs data from the new format
+    result["metrics"]["runs"] = {}
+    result["metrics"]["average_utilization"] = []
     
-    # If we still don't have utilization data, look for any percentage
-    if "average_utilization" not in result["metrics"] or not result["metrics"]["average_utilization"]:
-        # Look for any line with a percentage
-        for line in content.split('\n'):
-            if '%' in line and 'CPU' in line.upper():
-                matches = re.findall(r"([\d.]+)%", line)
-                if matches:
-                    result["metrics"]["average_utilization"] = [float(matches[0])]
-                    break
+    # Find all run sections
+    run_sections = re.findall(r"=== CPU Utilization Results \(Run: (\w+)\) ===.*?(?====|$)", content, re.DOTALL)
+    
+    for run_match in run_sections:
+        run_name = run_match
+        # Find the section for this run
+        run_pattern = rf"=== CPU Utilization Results \(Run: {run_name}\) ===(.*?)(?===|Creating metadata|$)"
+        run_section_match = re.search(run_pattern, content, re.DOTALL)
+        
+        if run_section_match:
+            run_content = run_section_match.group(1)
+            
+            # Extract average utilization for this run
+            avg_match = re.search(r"Average CPU utilization \(all cores\):\s*([\d.]+)%", run_content)
+            if avg_match:
+                avg_util = float(avg_match.group(1))
+                
+                # Extract load and duration
+                load_match = re.search(r"Load: (\d+) cores", run_content)
+                duration_match = re.search(r"Duration: (\d+) seconds", run_content)
+                
+                result["metrics"]["runs"][run_name] = {
+                    "avg_utilization": avg_util,
+                    "load": load_match.group(1) if load_match else "unknown",
+                    "duration": duration_match.group(1) if duration_match else "unknown"
+                }
+                
+                # Also add to the main average_utilization list for backward compatibility
+                result["metrics"]["average_utilization"].append(avg_util)
+    
+    # Fallback to old parsing if no runs found
+    if not result["metrics"]["runs"]:
+        avg_util_matches = re.findall(r"Average CPU utilization \(all cores\):\s*([\d.]+)%", content)
+        if avg_util_matches:
+            result["metrics"]["average_utilization"] = [float(util) for util in avg_util_matches]
+        else:
+            # Try alternative format
+            avg_util_matches = re.findall(r"all\s+([\d.]+)", content)
+            if avg_util_matches:
+                result["metrics"]["average_utilization"] = [100 - float(util) for util in avg_util_matches]
     
     # If still no data, set a default
     if "average_utilization" not in result["metrics"] or not result["metrics"]["average_utilization"]:
         result["metrics"]["average_utilization"] = [99.0]  # Default to 99% utilization
-    
-    # Extract run name if available
-    run_match = re.search(r"Run:\s*(\w+)", content)
-    run_name = run_match.group(1) if run_match else "default"
-    
-    # Extract per-core utilization
-    core_utils = {}
-    for match in re.finditer(r"Core\s+(\d+):\s*([\d.]+)%", content):
-        core = match.group(1)
-        util = float(match.group(2))
-        if core not in core_utils:
-            core_utils[core] = []
-        core_utils[core].append(util)
-    
-    # Try alternative format for per-core data
-    if not core_utils:
-        for match in re.finditer(r"(\d+)\s+([\d.]+)", content):
-            if len(match.groups()) == 2:
-                core = match.group(1)
-                util = 100 - float(match.group(2))  # mpstat shows idle percentage
-                if core not in core_utils:
-                    core_utils[core] = []
-                core_utils[core].append(util)
-    
-    if core_utils:
-        if "runs" not in result["metrics"]:
-            result["metrics"]["runs"] = {}
-        
-        if run_name not in result["metrics"]["runs"]:
-            result["metrics"]["runs"][run_name] = {}
-            
-        result["metrics"]["runs"][run_name]["per_core_utilization"] = core_utils
-        result["metrics"]["per_core_utilization"] = core_utils  # For backward compatibility
     
     # Add raw content for debugging
     result["raw_content"] = content

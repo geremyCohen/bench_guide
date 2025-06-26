@@ -12,6 +12,7 @@ import argparse
 import subprocess
 import threading
 import tempfile
+import webbrowser
 from pathlib import Path
 import boto3
 import concurrent.futures
@@ -493,16 +494,28 @@ def run_benchmarks_on_instance(instance, benchmarks, run_dir):
         print(f"[{timestamp}] " + colored(f"[{instance['name']}]", color) + " Collecting system information...")
         instance['system_info'] = collect_system_info(instance)
         
-        # Install required packages
+        # Install required packages (check if already done)
         timestamp = get_timestamp()
-        print(f"[{timestamp}] " + colored(f"[{instance['name']}]", color) + " Installing required packages...")
-        exit_code = run_ssh_command(
+        print(f"[{timestamp}] " + colored(f"[{instance['name']}]", color) + " Checking for required packages...")
+        exit_code, stdout, stderr = run_ssh_command(
             instance,
-            "sudo apt-get update -y && sudo apt-get install git build-essential -y"
+            "test -f \"$HOME/.visualizer_packages_installed\" && echo 'already_installed' || echo 'need_install'",
+            capture_output=True
         )
-        if exit_code != 0:
+        
+        if "already_installed" in stdout:
             timestamp = get_timestamp()
-            print(f"[{timestamp}] " + colored(f"[{instance['name']}-ERR]", color) + f" Package installation failed with exit code {exit_code}")
+            print(f"[{timestamp}] " + colored(f"[{instance['name']}]", color) + " Packages already installed, skipping apt commands")
+        else:
+            timestamp = get_timestamp()
+            print(f"[{timestamp}] " + colored(f"[{instance['name']}]", color) + " Installing required packages...")
+            exit_code = run_ssh_command(
+                instance,
+                "sudo apt-get update -y && sudo apt-get install git build-essential -y && touch \"$HOME/.visualizer_packages_installed\""
+            )
+            if exit_code != 0:
+                timestamp = get_timestamp()
+                print(f"[{timestamp}] " + colored(f"[{instance['name']}-ERR]", color) + f" Package installation failed with exit code {exit_code}")
         
         # Create a unique temporary directory
         timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -673,6 +686,15 @@ def main():
     
     timestamp = get_timestamp()
     print(f"\n[{timestamp}] Benchmark complete! Report available at: {report_path}")
+    
+    # Auto-open the report in the default browser
+    try:
+        webbrowser.open(f"file://{os.path.abspath(report_path)}")
+        timestamp = get_timestamp()
+        print(f"[{timestamp}] Opening report in default browser...")
+    except Exception as e:
+        timestamp = get_timestamp()
+        print(f"[{timestamp}] Could not auto-open report: {e}")
 
 
 if __name__ == "__main__":
