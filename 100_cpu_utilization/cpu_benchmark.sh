@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Configuration parameters
+TEST_DURATION=30  # Duration in seconds for each test run
+
 echo "CPU Benchmark Script v2.0 - $(date)"
 
 # Function to get architecture
@@ -68,9 +71,9 @@ run_test() {
 }
 
 # Run tests with different loads
-run_test $(nproc) 10 "full_load"  # Full load (all cores)
-run_test $(($(nproc) / 2)) 10 "half_load"  # Half load
-run_test 1 10 "single_core"  # Single core load
+run_test $(nproc) $TEST_DURATION "full_load"  # Full load (all cores)
+run_test $(($(nproc) / 2)) $TEST_DURATION "half_load"  # Half load
+run_test 1 $TEST_DURATION "single_core"  # Single core load
 
 # Create a manifest file listing all runs
 echo "Creating runs manifest file"

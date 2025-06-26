@@ -46,14 +46,8 @@ def get_instances():
             if instance.platform == "windows":
                 continue  # Skip Windows instances
             
-            # Try to determine username based on image ID
-            image_id = instance.image_id.lower() if instance.image_id else ""
-            if "amazon" in image_id:
-                username = "ec2-user"
-            elif "debian" in image_id:
-                username = "admin"
-            elif "centos" in image_id:
-                username = "centos"
+            # Get username based on AMI OS
+            username = get_username_for_ami(instance.image_id, session)
             
             # Get SSH key path
             key_name = instance.key_name
@@ -85,3 +79,69 @@ def get_instances():
     except Exception as e:
         print(f"Error fetching AWS instances: {str(e)}")
         return []
+
+
+def get_username_for_ami(ami_id, session):
+    """Determine SSH username based on AMI OS."""
+    try:
+        ec2_client = session.client('ec2')
+        
+        # Get AMI details
+        response = ec2_client.describe_images(ImageIds=[ami_id])
+        
+        if not response['Images']:
+            return 'ubuntu'  # Default fallback
+        
+        image = response['Images'][0]
+        
+        # Check image name and description for OS type
+        image_name = image.get('Name', '').lower()
+        description = image.get('Description', '').lower()
+        
+        # Determine username based on OS
+        if 'debian' in image_name or 'debian' in description:
+            return 'admin'
+        elif 'ubuntu' in image_name or 'ubuntu' in description:
+            return 'ubuntu'
+        elif 'amazon' in image_name or 'amzn' in image_name or 'amazon linux' in description:
+            return 'ec2-user'
+        else:
+            # Default to ubuntu if we can't determine
+            return 'ubuntu'
+            
+    except Exception as e:
+        print(f"Error determining username for AMI {ami_id}: {e}")
+        return 'ubuntu'  # Default fallback
+
+
+def get_username_for_ami(ami_id, session):
+    """Determine SSH username based on AMI OS."""
+    try:
+        ec2_client = session.client('ec2')
+        
+        # Get AMI details
+        response = ec2_client.describe_images(ImageIds=[ami_id])
+        
+        if not response['Images']:
+            return 'ubuntu'  # Default fallback
+        
+        image = response['Images'][0]
+        
+        # Check image name and description for OS type
+        image_name = image.get('Name', '').lower()
+        description = image.get('Description', '').lower()
+        
+        # Determine username based on OS
+        if 'debian' in image_name or 'debian' in description:
+            return 'admin'
+        elif 'ubuntu' in image_name or 'ubuntu' in description:
+            return 'ubuntu'
+        elif 'amazon' in image_name or 'amzn' in image_name or 'amazon linux' in description:
+            return 'ec2-user'
+        else:
+            # Default to ubuntu if we can't determine
+            return 'ubuntu'
+            
+    except Exception as e:
+        print(f"Error determining username for AMI {ami_id}: {e}")
+        return 'ubuntu'  # Default fallback

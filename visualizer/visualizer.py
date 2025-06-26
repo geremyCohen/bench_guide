@@ -27,7 +27,7 @@ from visualizers import generate_html_report
 # Constants
 REPO_URL = "https://github.com/geremyCohen/bench_guide"
 RESULTS_DIR = Path(__file__).parent / "results"
-LAZY_RELOAD = 1  # Set to True to skip remote execution and reprocess last results
+LAZY_RELOAD = 0  # Set to True to skip remote execution and reprocess last results
 
 # Ensure results directory exists
 RESULTS_DIR.mkdir(exist_ok=True)
@@ -785,7 +785,8 @@ def main():
             print()
     
     # Select cloud provider
-    provider_name = select_cloud_provider()
+    # provider_name = select_cloud_provider()  # TODO: Add back when supporting multiple providers
+    provider_name = "aws"  # Default to AWS for now
     
     # Get provider module
     if provider_name == "aws":
