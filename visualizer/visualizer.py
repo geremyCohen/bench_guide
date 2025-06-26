@@ -74,7 +74,6 @@ def run_ssh_command(instance, command, capture_output=False):
     ssh_cmd = [
         "ssh",
         "-o", "StrictHostKeyChecking=accept-new",  # Accept new hosts automatically
-        "-o", "UserKnownHostsFile=/dev/null",
         "-o", "ConnectTimeout=10",  # Timeout after 10 seconds
     ]
     
@@ -271,7 +270,6 @@ def run_single_benchmark(instance, benchmark, benchmark_output_dir, temp_dir):
         scp_cmd = [
             "scp",
             "-o", "StrictHostKeyChecking=accept-new",
-            "-o", "UserKnownHostsFile=/dev/null",
         ]
         
         # Add identity file if specified
