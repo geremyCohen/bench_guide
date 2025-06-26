@@ -129,6 +129,19 @@ def parse_cpu_utilization(content, result):
             
         return result
     
+    # Extract stress-ng metrics
+    stress_metrics = {}
+    for match in re.finditer(r"stress-ng: metrc: \[\d+\] cpu (\d+) ([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+)", content):
+        bogo_ops, real_time, usr_time, sys_time, bogo_ops_real, bogo_ops_time = match.groups()
+        stress_metrics = {
+            "bogo_ops": int(bogo_ops),
+            "real_time": float(real_time),
+            "usr_time": float(usr_time),
+            "sys_time": float(sys_time),
+            "bogo_ops_real": float(bogo_ops_real),
+            "bogo_ops_time": float(bogo_ops_time)
+        }
+    
     # Extract runs data from the new format
     result["metrics"]["runs"] = {}
     result["metrics"]["average_utilization"] = []
@@ -159,6 +172,10 @@ def parse_cpu_utilization(content, result):
                     "load": load_match.group(1) if load_match else "unknown",
                     "duration": duration_match.group(1) if duration_match else "unknown"
                 }
+                
+                # Add stress-ng metrics if available
+                if stress_metrics:
+                    result["metrics"]["runs"][run_name]["stress_metrics"] = stress_metrics
                 
                 # Also add to the main average_utilization list for backward compatibility
                 result["metrics"]["average_utilization"].append(avg_util)

@@ -41,8 +41,8 @@ run_test() {
   mpstat -P ALL 1 $(($duration + 1)) > "$mpstat_file" &
   mpstat_pid=$!
   
-  # Run stress-ng
-  stress-ng --cpu $load --timeout $duration
+  # Run stress-ng with metrics
+  stress-ng --cpu $load --timeout $duration --metrics-brief
   
   # Wait for mpstat to finish
   wait $mpstat_pid

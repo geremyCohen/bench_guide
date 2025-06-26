@@ -85,11 +85,15 @@ def generate_html(results):
         th {
             background-color: #f2f2f2;
         }
-        .system-info {
+        .system-info, .stress-metrics {
             background-color: #f9f9f9;
             padding: 10px;
             border-radius: 5px;
             margin-bottom: 15px;
+        }
+        .stress-metrics {
+            background-color: #f0f8ff;
+            font-size: 0.9em;
         }
     </style>
 </head>
@@ -372,7 +376,22 @@ def generate_run_specific_mpstat_chart(results, run_name, chart_index):
         has_detailed = len(time_series) > 0 and 'usr' in time_series[0]
         
         if has_detailed:
+            # Get stress-ng metrics if available
+            stress_metrics = data.get("metrics", {}).get("runs", {}).get(run_name, {}).get("stress_metrics", {})
+            
+            # Create header with metrics
             html += f'<h4>{instance_name} - CPU Breakdown - {run_name.replace("_", " ").title()}</h4>\n'
+            
+            # Add stress-ng metrics summary if available
+            if stress_metrics:
+                html += '<div class="stress-metrics">\n'
+                html += f'<p><strong>Operations:</strong> {stress_metrics.get("bogo_ops", "N/A")} | '
+                html += f'<strong>Ops/s (real):</strong> {stress_metrics.get("bogo_ops_real", "N/A"):.2f} | '
+                html += f'<strong>Ops/s (CPU):</strong> {stress_metrics.get("bogo_ops_time", "N/A"):.2f} | '
+                html += f'<strong>User:</strong> {stress_metrics.get("usr_time", "N/A"):.2f}s | '
+                html += f'<strong>System:</strong> {stress_metrics.get("sys_time", "N/A"):.2f}s</p>\n'
+                html += '</div>\n'
+            
             html += f'<div class="chart-container"><canvas id="mpstatChart_{instance_name}_{run_name}_{chart_index}"></canvas></div>\n'
             
             # Create stacked datasets for usr, sys, iowait
