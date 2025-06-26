@@ -131,7 +131,7 @@ def parse_cpu_utilization(content, result):
     
     # Extract stress-ng metrics
     stress_metrics = {}
-    for match in re.finditer(r"stress-ng: metrc: \[\d+\] cpu (\d+) ([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+)", content):
+    for match in re.finditer(r"stress-ng: metrc: \[\d+\] cpu\s+(\d+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)", content):
         bogo_ops, real_time, usr_time, sys_time, bogo_ops_real, bogo_ops_time = match.groups()
         stress_metrics = {
             "bogo_ops": int(bogo_ops),
