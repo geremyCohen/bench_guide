@@ -44,6 +44,7 @@ def generate_html(results):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Benchmark Results</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -202,13 +203,26 @@ def generate_cpu_utilization_charts(results):
                         options: {{
                             responsive: true,
                             maintainAspectRatio: false,
+                            plugins: {{
+                                datalabels: {{
+                                    anchor: 'end',
+                                    align: 'top',
+                                    formatter: function(value) {{
+                                        return value.toFixed(1) + '%';
+                                    }},
+                                    font: {{
+                                        weight: 'bold'
+                                    }}
+                                }}
+                            }},
                             scales: {{
                                 y: {{
                                     beginAtZero: true,
                                     max: 100
                                 }}
                             }}
-                        }}
+                        }},
+                        plugins: [ChartDataLabels]
                     }});
                 }});
             </script>
@@ -300,13 +314,26 @@ def generate_cpu_utilization_charts(results):
                     options: {{
                         responsive: true,
                         maintainAspectRatio: false,
+                        plugins: {{
+                            datalabels: {{
+                                anchor: 'end',
+                                align: 'top',
+                                formatter: function(value) {{
+                                    return value.toFixed(1) + '%';
+                                }},
+                                font: {{
+                                    weight: 'bold'
+                                }}
+                            }}
+                        }},
                         scales: {{
                             y: {{
                                 beginAtZero: true,
                                 max: 100
                             }}
                         }}
-                    }}
+                    }},
+                    plugins: [ChartDataLabels]
                 }});
             }});
         </script>
@@ -362,12 +389,25 @@ def generate_generic_charts(results, benchmark_type):
                     options: {{
                         responsive: true,
                         maintainAspectRatio: false,
+                        plugins: {{
+                            datalabels: {{
+                                anchor: 'end',
+                                align: 'top',
+                                formatter: function(value) {{
+                                    return value.toFixed(1);
+                                }},
+                                font: {{
+                                    weight: 'bold'
+                                }}
+                            }}
+                        }},
                         scales: {{
                             y: {{
                                 beginAtZero: true
                             }}
                         }}
-                    }}
+                    }},
+                    plugins: [ChartDataLabels]
                 }});
             }});
         </script>
