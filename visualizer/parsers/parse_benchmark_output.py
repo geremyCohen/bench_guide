@@ -57,30 +57,9 @@ def parse_file(file_path, benchmark_type):
         "raw_data": {}
     }
     
-    # Debug output
-    print(f"DEBUG: Parsing file: {file_path}")
-    
-    # Check if this is a metadata file
-    if "__metadata_" in file_path:
-        print(f"DEBUG: This is a metadata file")
-        # Extract run name from file path
-        run_name = None
-        if "__metadata_" in file_path:
-            run_name = file_path.split("__metadata_")[1].split(".")[0]
-            print(f"DEBUG: Run name from metadata file: {run_name}")
-    
-    
     # Read file content
     with open(file_path, 'r') as f:
         content = f.read()
-    
-    # Debug output
-    print(f"DEBUG: Parsing file: {file_path}")
-    print(f"DEBUG: File size: {len(content)} bytes")
-    print(f"DEBUG: File contains 'stress-ng: metrc': {'stress-ng: metrc' in content}")
-    if 'stress-ng: metrc' in content:
-        print(f"DEBUG: First occurrence at position: {content.find('stress-ng: metrc')}")
-        print(f"DEBUG: Content around first occurrence: {content[content.find('stress-ng: metrc'):content.find('stress-ng: metrc')+100]}")
     
     
     # Store raw data
@@ -88,16 +67,10 @@ def parse_file(file_path, benchmark_type):
     
     # Check if this is a raw output file
     if "STDOUT:" in content and "stress-ng: metrc" in content:
-        print(f"DEBUG: This is a raw output file with stress-ng metrics")
         # Extract just the STDOUT part
         stdout_match = re.search(r"STDOUT:\n(.+?)(?:\n\n\nSTDERR:|$)", content, re.DOTALL)
         if stdout_match:
             stdout_content = stdout_match.group(1)
-            print(f"DEBUG: Extracted STDOUT content, size: {len(stdout_content)} bytes")
-            print(f"DEBUG: STDOUT contains 'stress-ng: metrc': {'stress-ng: metrc' in stdout_content}")
-            if 'stress-ng: metrc' in stdout_content:
-                print(f"DEBUG: First occurrence in STDOUT at position: {stdout_content.find('stress-ng: metrc')}")
-                print(f"DEBUG: Content around first occurrence in STDOUT: {stdout_content[stdout_content.find('stress-ng: metrc'):stdout_content.find('stress-ng: metrc')+100]}")
             # Use the STDOUT content for parsing
             content = stdout_content
     
