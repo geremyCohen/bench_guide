@@ -72,7 +72,14 @@ run_test() {
 
 # Run tests with different loads
 run_test $(nproc) $TEST_DURATION "full_load"  # Full load (all cores)
-run_test $(($(nproc) / 2)) $TEST_DURATION "half_load"  # Half load
+# Compute half-load as floor(nproc/2), but ensure at least one core
+half_load=$(( $(nproc) / 2 ))
+if [ "$half_load" -lt 1 ]; then
+  half_load=1
+fi
+run_test $half_load $TEST_DURATION "half_load"
+
+# Single core load (always one worker)
 run_test 1 $TEST_DURATION "single_core"  # Single core load
 
 # Create a manifest file listing all runs
